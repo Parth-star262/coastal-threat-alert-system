@@ -13,7 +13,8 @@ DB_CONFIG = {
     "database": os.getenv("DB_NAME", "weatherdb"),
     "user": os.getenv("DB_USER", "postgres"),
     "password": os.getenv("DB_PASS", ""),
-    "port": os.getenv("DB_PORT", "5432")
+    "port": os.getenv("DB_PORT", "5432"),
+    "sslmode": os.getenv("DB_SSLMODE", "prefer")
 }
 
 EMAIL_CONFIG = {
