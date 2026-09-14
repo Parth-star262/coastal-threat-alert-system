@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Coastal Threat Alert</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f4f7fb; color: #172033; }
+    header { padding: 18px 24px; background: #12304a; color: white; }
+    main { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; padding: 16px; }
+    section { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 2px 8px #17203314; }
+    #map { height: 520px; }
+    .record { border-left: 4px solid #2b7a9b; padding: 10px; margin: 8px 0; background: #eef7fa; }
+    .risk-CRITICAL { border-color: #b91c1c; background: #fef2f2; }
+    .risk-HIGH { border-color: #ea580c; background: #fff7ed; }
+    .risk-MEDIUM { border-color: #ca8a04; background: #fefce8; }
+    @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header><strong>Coastal Threat Alert</strong><div>Live marine observations and explainable location risk</div></header>
+  <main>
+    <section><h2>Risk Zones</h2><div id="map"></div></section>
+    <section><h2>Latest Coastal Data</h2><div id="records">Loading...</div><h2>Active Alerts</h2><div id="alerts">Loading...</div></section>
+  </main>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const apiBase = window.COASTAL_API_BASE_URL || "http://127.0.0.1:5000";
+    const map = L.map("map").setView([20.5, 78.9], 5);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap contributors" }).addTo(map);
+    const colors = { LOW: "#22c55e", MEDIUM: "#eab308", HIGH: "#f97316", CRITICAL: "#dc2626" };
+
+    async function refresh() {
+      try {
+        const [coastalResponse, riskResponse, alertsResponse] = await Promise.all([
+          fetch(`${apiBase}/coastal/latest`), fetch(`${apiBase}/risk-zones`), fetch(`${apiBase}/alerts?status=active`)
+        ]);
+        if (!coastalResponse.ok || !riskResponse.ok || !alertsResponse.ok) throw new Error("API request failed");
+        const coastal = await coastalResponse.json();
+        const risks = await riskResponse.json();
+        const alerts = await alertsResponse.json();
+        document.getElementById("records").innerHTML = coastal.map(item => `<div class="record"><strong>${item.city}</strong><br>Wave: ${item.wave_height_m ?? "-"} m · Sea level: ${item.sea_level_height_m ?? "-"} m<br>Observed: ${item.observed_at}</div>`).join("") || "No coastal observations available.";
+        document.getElementById("alerts").innerHTML = alerts.map(item => `<div class="record risk-${item.severity}"><strong>${item.city} · ${item.severity}</strong><br>${item.message}</div>`).join("") || "No active alerts.";
+        L.geoJSON(risks, { style: feature => { const color = colors[feature.properties.risk_level] || "#64748b"; return { color, fillColor: color, fillOpacity: .22 }; }, onEachFeature: (feature, layer) => layer.bindPopup(`${feature.properties.city}: ${feature.properties.risk_level}`) }).addTo(map);
+      } catch (error) {
+        document.getElementById("records").textContent = "Unable to load live API data.";
+      }
+    }
+    refresh();
+    setInterval(refresh, 30000);
+  </script>
+</body>
+</html>

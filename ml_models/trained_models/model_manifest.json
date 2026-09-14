@@ -1,0 +1,14 @@
+{
+  "model_version": "20260914161341",
+  "framework": "pytorch",
+  "features": [
+    "temperature",
+    "humidity",
+    "wind_speed",
+    "pressure",
+    "hour",
+    "month"
+  ],
+  "metrics_file": "ml_models/trained_models\\metrics.json",
+  "training_data": "data/training_data.csv"
+}

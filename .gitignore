@@ -1,0 +1,9 @@
+credentials.env
+.env
+care-dashboard/.env
+__pycache__/
+*.pyc
+venv/
+care-dashboard/node_modules/
+care-dashboard/build/
+**/.git-embedded-backup/
