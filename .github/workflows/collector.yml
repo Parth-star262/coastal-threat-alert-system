@@ -2,12 +2,17 @@ name: Collect Coastal Data
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "0 * * * *"
   workflow_dispatch:
+
+concurrency:
+  group: collect-coastal-data
+  cancel-in-progress: true
 
 jobs:
   collect:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -32,6 +37,15 @@ jobs:
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
           NOTIFICATION_TEST_MODE: "true"
           NOTIFICATION_MAX_RETRIES: "2"
-
         run: |
-          python -c "from weather_api_test import fetch_and_store; from services.coastal_data_service import CoastalDataService; from services.storm_data_service import StormDataService; from services.risk_assessment_service import RiskAssessmentService; fetch_and_store(); CoastalDataService().collect_all(); StormDataService().collect_current_cyclones(); RiskAssessmentService().assess_all()"
+          python - <<'PY'
+          from weather_api_test import fetch_and_store
+          from services.coastal_data_service import CoastalDataService
+          from services.storm_data_service import StormDataService
+          from services.risk_assessment_service import RiskAssessmentService
+
+          fetch_and_store()
+          CoastalDataService().collect_all()
+          StormDataService().collect_current_cyclones()
+          RiskAssessmentService().assess_all()
+          PY
