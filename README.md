@@ -60,6 +60,24 @@ npm install
 npm start
 ```
 
+### Scheduled collector
+
+The scheduled collector runs from `.github/workflows/collector.yml` and requires
+these repository Actions secrets:
+
+- `DB_HOST`
+- `DB_NAME`
+- `DB_USER`
+- `DB_PASS`
+- `DB_PORT`
+- `OPENWEATHER_API_KEY`
+
+Add them under **Settings > Secrets and variables > Actions**. The workflow
+validates that every required value is present before installing dependencies,
+so a missing secret produces an actionable setup error instead of a Python
+import failure. Run it once with **Actions > Collect Coastal Data >
+Run workflow** after adding the secrets.
+
 For a deployed dashboard, create `care-dashboard/.env` before building:
 
 ```text
