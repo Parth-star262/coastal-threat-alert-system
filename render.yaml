@@ -1,0 +1,130 @@
+services:
+  - type: web
+    name: coastal-threat-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    preDeployCommand: python migrate.py
+    startCommand: gunicorn --bind 0.0.0.0:$PORT wsgi:app
+    healthCheckPath: /health
+    envVars:
+      - key: APP_HOST
+        value: 0.0.0.0
+      - key: APP_PORT
+        value: 10000
+      - key: APP_DEBUG
+        value: "false"
+      - key: DB_HOST
+        fromDatabase:
+          name: coastal-threat-db
+          property: host
+      - key: DB_NAME
+        fromDatabase:
+          name: coastal-threat-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: coastal-threat-db
+          property: user
+      - key: DB_PASS
+        fromDatabase:
+          name: coastal-threat-db
+          property: password
+      - key: DB_PORT
+        fromDatabase:
+          name: coastal-threat-db
+          property: port
+      - key: DB_SSLMODE
+        value: require
+      - key: CORS_ORIGINS
+        fromService:
+          type: static
+          name: coastal-threat-dashboard
+          property: host
+      - key: OPENWEATHER_API_KEY
+        sync: false
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false
+      - key: RECEIVER_EMAIL
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+      - key: TWILIO_TO_NUMBER
+        sync: false
+      - key: NOTIFICATION_TEST_MODE
+        value: "false"
+      - key: NOTIFICATION_MAX_RETRIES
+        value: "2"
+
+  - type: static
+    name: coastal-threat-dashboard
+    rootDir: care-dashboard
+    buildCommand: npm ci && npm run build
+    staticPublishPath: build
+    envVars:
+      - key: REACT_APP_API_BASE_URL
+        fromService:
+          type: web
+          name: coastal-threat-api
+          property: host
+
+  - type: cron
+    name: coastal-threat-collector
+    runtime: python
+    plan: free
+    schedule: "0 * * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python collect.py
+    envVars:
+      - key: DB_HOST
+        fromDatabase:
+          name: coastal-threat-db
+          property: host
+      - key: DB_NAME
+        fromDatabase:
+          name: coastal-threat-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: coastal-threat-db
+          property: user
+      - key: DB_PASS
+        fromDatabase:
+          name: coastal-threat-db
+          property: password
+      - key: DB_PORT
+        fromDatabase:
+          name: coastal-threat-db
+          property: port
+      - key: DB_SSLMODE
+        value: require
+      - key: OPENWEATHER_API_KEY
+        sync: false
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false
+      - key: RECEIVER_EMAIL
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+      - key: TWILIO_TO_NUMBER
+        sync: false
+      - key: NOTIFICATION_TEST_MODE
+        value: "false"
+      - key: NOTIFICATION_MAX_RETRIES
+        value: "2"
+
+databases:
+  - name: coastal-threat-db
+    plan: free

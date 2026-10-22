@@ -87,6 +87,19 @@ REACT_APP_API_BASE_URL=https://your-api-domain.example.com
 Set `APP_DEBUG=false`, configure `CORS_ORIGINS` to the deployed dashboard origin,
 and keep all provider credentials in the hosting platform's secret manager.
 
+### Render deployment
+
+`render.yaml` defines a Flask API, React static dashboard, PostgreSQL database,
+and hourly collector job. Create a new Render Blueprint from this repository,
+then provide the marked secret environment variables in the Render dashboard.
+The web service runs migrations before startup and exposes `/health` for the
+deployment health check. The collector runs `collect.py` hourly and stores
+weather, marine, storm-event, and risk-assessment data in the same database.
+
+Notification delivery is disabled until valid Gmail and Twilio credentials are
+configured. Use `NOTIFICATION_TEST_MODE=true` while validating the deployment
+to record notification attempts without contacting recipients.
+
 ## Important Endpoints
 
 - `GET /health` - deployment health check
