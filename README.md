@@ -109,6 +109,9 @@ variables. Keep the connection string private. It should include
 does not specify an SSL mode. Redeploy after saving the variable, then verify
 `GET /health` returns HTTP 200.
 
+The verified live API is available at:
+https://coastal-threat-alert-system-xkek.onrender.com
+
 ## Important Endpoints
 
 - `GET /health` - deployment health check

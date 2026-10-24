@@ -67,7 +67,7 @@ def home():
     return jsonify({
         "service": "Coastal Threat Alert API",
         "status": "Online",
-        "ml_model": "Active (PyTorch CUDA GPU - RTX 2050)" if ML_CONFIG.get("use_model") else "Disabled",
+        "ml_model": "Active (PyTorch/Keras runtime)" if ML_CONFIG.get("use_model") else "Disabled",
         "endpoints": {
             "root": "/",
             "predict": "/predict (POST/GET)",
