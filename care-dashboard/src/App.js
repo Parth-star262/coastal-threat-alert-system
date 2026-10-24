@@ -14,6 +14,8 @@ function App() {
   const [alerts, setAlerts] = React.useState([]);
   const [coastalAnomalies, setCoastalAnomalies] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [refreshing, setRefreshing] = React.useState(false);
+  const [lastUpdated, setLastUpdated] = React.useState(null);
   const [error, setError] = React.useState(null);
   const [selectedCity, setSelectedCity] = React.useState("Mumbai");
 
@@ -51,23 +53,25 @@ function App() {
       setAlerts(await alertsResponse.json());
       setCoastalAnomalies(await anomalyResponse.json());
       setError(null);
+      setLastUpdated(new Date());
     } catch (err) {
-      setError("Failed to fetch dashboard data");
+      setError("Background refresh failed; showing the last successful data.");
       console.error(err);
     }
   };
 
   React.useEffect(() => {
     const loadData = async () => {
-      setLoading(true);
+      setRefreshing(true);
       await fetchDashboardData();
+      setRefreshing(false);
       setLoading(false);
     };
     
     loadData();
     
-    // Refresh data every 30 seconds
-    const interval = setInterval(loadData, 30000);
+    // The collector runs hourly; refresh without replacing the visible dashboard.
+    const interval = setInterval(loadData, 300000);
     return () => clearInterval(interval);
   }, []);
 
@@ -93,22 +97,34 @@ function App() {
   }
 
   if (error) {
-    return (
-      <div className="p-6 text-center">
-        <div className="text-red-500 text-xl">❌ {error}</div>
-        <button 
-          onClick={() => window.location.reload()} 
-          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          Retry
-        </button>
-      </div>
-    );
+    if (!data.length) {
+      return (
+        <div className="p-6 text-center">
+          <div className="text-red-500 text-xl">❌ {error}</div>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
   }
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">🌊 Coastal Threat Alert Dashboard</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <h1 className="text-2xl font-bold">🌊 Coastal Threat Alert Dashboard</h1>
+        <div className="text-sm text-gray-600" role="status" aria-live="polite">
+          {refreshing ? "Refreshing…" : lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "Waiting for data"}
+        </div>
+      </div>
+      {error && (
+        <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg mb-4 text-orange-800" role="status">
+          {error}
+        </div>
+      )}
       
       {/* City Selector */}
       <div className="mb-4 text-center">
