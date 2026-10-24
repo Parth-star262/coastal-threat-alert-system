@@ -1,4 +1,6 @@
 import os
+from urllib.parse import parse_qs, unquote, urlparse
+
 from dotenv import load_dotenv
 
 load_dotenv("credentials.env")
@@ -8,14 +10,34 @@ APP_PORT = int(os.getenv("APP_PORT", "5000"))
 APP_DEBUG = os.getenv("APP_DEBUG", "false").lower() == "true"
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 
-DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "localhost"),
-    "database": os.getenv("DB_NAME", "weatherdb"),
-    "user": os.getenv("DB_USER", "postgres"),
-    "password": os.getenv("DB_PASS", ""),
-    "port": os.getenv("DB_PORT", "5432"),
-    "sslmode": os.getenv("DB_SSLMODE", "prefer")
-}
+def _database_config():
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        parsed = urlparse(database_url)
+        if parsed.scheme not in {"postgres", "postgresql"} or not parsed.hostname:
+            raise ValueError("DATABASE_URL must be a valid PostgreSQL connection URL")
+
+        query = parse_qs(parsed.query)
+        return {
+            "host": parsed.hostname,
+            "database": parsed.path.lstrip("/"),
+            "user": unquote(parsed.username or ""),
+            "password": unquote(parsed.password or ""),
+            "port": parsed.port or 5432,
+            "sslmode": query.get("sslmode", [os.getenv("DB_SSLMODE", "require")])[0],
+        }
+
+    return {
+        "host": os.getenv("DB_HOST", "localhost"),
+        "database": os.getenv("DB_NAME", "weatherdb"),
+        "user": os.getenv("DB_USER", "postgres"),
+        "password": os.getenv("DB_PASS", ""),
+        "port": os.getenv("DB_PORT", "5432"),
+        "sslmode": os.getenv("DB_SSLMODE", "prefer"),
+    }
+
+
+DB_CONFIG = _database_config()
 
 EMAIL_CONFIG = {
     "sender_email": os.getenv("GMAIL_USER"),

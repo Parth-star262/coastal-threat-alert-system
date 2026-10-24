@@ -26,7 +26,8 @@ flowchart LR
 
 ## Setup
 
-1. Create a PostgreSQL database and apply the migrations in order:
+1. Create a PostgreSQL database (the deployed project uses the Neon
+`coastal_threat_db` project) and apply the migrations in order:
 
 ```powershell
 python -c "from pathlib import Path; import psycopg2; from config import DB_CONFIG; conn=psycopg2.connect(**DB_CONFIG); conn.autocommit=True; [conn.cursor().execute(Path(path).read_text()) for path in sorted(Path('migrations').glob('*.sql'))]; print('migrations applied')"
@@ -89,9 +90,10 @@ and keep all provider credentials in the hosting platform's secret manager.
 
 ### Render deployment
 
-`render.yaml` defines a Flask API, React static dashboard, PostgreSQL database,
-and hourly collector job. Create a new Render Blueprint from this repository,
-then provide the marked secret environment variables in the Render dashboard.
+`render.yaml` defines a Flask API, React static dashboard, and hourly collector
+job. The services use an externally managed PostgreSQL database such as Neon.
+Create a new Render Blueprint from this repository, then provide the marked
+secret environment variables in the Render dashboard.
 The web service runs migrations before startup and exposes `/health` for the
 deployment health check. The collector runs `collect.py` hourly and stores
 weather, marine, storm-event, and risk-assessment data in the same database.
@@ -99,6 +101,13 @@ weather, marine, storm-event, and risk-assessment data in the same database.
 Notification delivery is disabled until valid Gmail and Twilio credentials are
 configured. Use `NOTIFICATION_TEST_MODE=true` while validating the deployment
 to record notification attempts without contacting recipients.
+
+For the existing Render service backed by Neon, set `DATABASE_URL` to the
+Neon PostgreSQL connection string in the service and collector environment
+variables. Keep the connection string private. It should include
+`sslmode=require`, or the application will apply that default when the URL
+does not specify an SSL mode. Redeploy after saving the variable, then verify
+`GET /health` returns HTTP 200.
 
 ## Important Endpoints
 
