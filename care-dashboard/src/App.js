@@ -1,10 +1,32 @@
 import React from "react";
 import WeatherCharts from "./weatherCharts";
 import WeatherTable from "./weatherTable";
-import AlertBanner from "./AlertBanner";
 import MapView from "./MapView";
+import "./App.css";
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://127.0.0.1:5000";
+
+function Metric({ label, value, detail, tone = "" }) {
+  return (
+    <div className={`metric-card ${tone}`}>
+      <span className="metric-label">{label}</span>
+      <strong>{value}</strong>
+      <span className="metric-detail">{detail}</span>
+    </div>
+  );
+}
+
+function SectionHeader({ eyebrow, title, action }) {
+  return (
+    <div className="section-header">
+      <div>
+        <span className="eyebrow">{eyebrow}</span>
+        <h2>{title}</h2>
+      </div>
+      {action}
+    </div>
+  );
+}
 
 function App() {
   const [data, setData] = React.useState([]);
@@ -19,46 +41,42 @@ function App() {
   const [error, setError] = React.useState(null);
   const [selectedCity, setSelectedCity] = React.useState("Mumbai");
 
-  // Get unique cities from data
-  const cities = [...new Set(data.map(item => item.city))];
-
-  // Filter data for selected city
-  const cityData = data.filter(item => item.city === selectedCity);
-  
-  // Get latest data for selected city only
-  const cityLatestData = cityData.length > 0 ? cityData[0] : null;
-  const cityCoastalData = coastalData.find(item => item.city === selectedCity);
-  const cityRiskZone = riskZones.features.find(feature => feature.properties.city === selectedCity);
-  const cityAnomaly = coastalAnomalies.find(item => item.city === selectedCity);
-  const cityAlerts = alerts.filter(alert => alert.city === selectedCity);
+  const cities = [...new Set(data.map((item) => item.city))];
+  const cityData = data.filter((item) => item.city === selectedCity);
+  const cityLatestData = cityData[0] || null;
+  const cityCoastalData = coastalData.find((item) => item.city === selectedCity);
+  const cityRiskZone = riskZones.features.find((feature) => feature.properties.city === selectedCity);
+  const cityAnomaly = coastalAnomalies.find((item) => item.city === selectedCity);
+  const cityAlerts = alerts.filter((alert) => alert.city === selectedCity);
   const weatherIsStale = cityLatestData?.timestamp
     ? Date.now() - new Date(cityLatestData.timestamp).getTime() > 30 * 60 * 1000
     : false;
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = React.useCallback(async () => {
     try {
-      const [historyResponse, coastalResponse, riskResponse, alertsResponse, anomalyResponse] = await Promise.all([
+      const responses = await Promise.all([
         fetch(`${API_BASE_URL}/history`),
         fetch(`${API_BASE_URL}/coastal/latest`),
         fetch(`${API_BASE_URL}/risk-zones`),
         fetch(`${API_BASE_URL}/alerts?status=active`),
         fetch(`${API_BASE_URL}/coastal/anomalies`),
       ]);
-      if (!historyResponse.ok || !coastalResponse.ok || !riskResponse.ok || !alertsResponse.ok || !anomalyResponse.ok) {
-        throw new Error("Dashboard API request failed");
-      }
-      setData(await historyResponse.json());
-      setCoastalData(await coastalResponse.json());
-      setRiskZones(await riskResponse.json());
-      setAlerts(await alertsResponse.json());
-      setCoastalAnomalies(await anomalyResponse.json());
-      setError(null);
+      if (responses.some((response) => !response.ok)) throw new Error("Dashboard API request failed");
+      const [history, coastal, risks, activeAlerts, anomalies] = await Promise.all(
+        responses.map((response) => response.json())
+      );
+      setData(history);
+      setCoastalData(coastal);
+      setRiskZones(risks);
+      setAlerts(activeAlerts);
+      setCoastalAnomalies(anomalies);
       setLastUpdated(new Date());
+      setError(null);
     } catch (err) {
-      setError("Background refresh failed; showing the last successful data.");
+      setError("Background refresh failed. Showing the last successful data.");
       console.error(err);
     }
-  };
+  }, []);
 
   React.useEffect(() => {
     const loadData = async () => {
@@ -67,175 +85,114 @@ function App() {
       setRefreshing(false);
       setLoading(false);
     };
-    
     loadData();
-    
-    // The collector runs hourly; refresh without replacing the visible dashboard.
     const interval = setInterval(loadData, 300000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchDashboardData]);
 
   React.useEffect(() => {
     if (!selectedCity) return;
     fetch(`${API_BASE_URL}/predict/${encodeURIComponent(selectedCity)}`)
-      .then(response => response.ok ? response.json() : null)
+      .then((response) => (response.ok ? response.json() : null))
       .then(setPrediction)
       .catch(() => setPrediction(null));
   }, [selectedCity]);
 
-  // Function to handle city selection from map
-  const handleCitySelect = (cityName) => {
-    setSelectedCity(cityName);
-  };
+  const handleCitySelect = (cityName) => setSelectedCity(cityName);
 
-  if (loading) {
-    return (
-      <div className="p-6 text-center">
-        <div className="text-xl">🔄 Loading weather data...</div>
-      </div>
-    );
+  if (loading && !data.length) {
+    return <div className="boot-screen"><div className="boot-mark">◒</div><strong>Coastal intelligence</strong><span>Connecting to live observations…</span></div>;
   }
 
-  if (error) {
-    if (!data.length) {
-      return (
-        <div className="p-6 text-center">
-          <div className="text-red-500 text-xl">❌ {error}</div>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Retry
-          </button>
-        </div>
-      );
-    }
+  if (error && !data.length) {
+    return <div className="boot-screen"><strong>Unable to load live data</strong><span>{error}</span><button className="button button-primary" onClick={() => window.location.reload()}>Retry connection</button></div>;
   }
+
+  const riskLevel = cityRiskZone?.properties?.risk_level || "—";
+  const riskScore = cityRiskZone?.properties?.risk_score ?? "—";
+  const predictionLabel = prediction?.alert_level || "—";
 
   return (
-    <div className="p-6">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-        <h1 className="text-2xl font-bold">🌊 Coastal Threat Alert Dashboard</h1>
-        <div className="text-sm text-gray-600" role="status" aria-live="polite">
-          {refreshing ? "Refreshing…" : lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "Waiting for data"}
+    <div className="dashboard-shell">
+      <aside className="sidebar">
+        <div className="brand"><span className="brand-mark">◒</span><span>COASTAL<br /><b>INTELLIGENCE</b></span></div>
+        <div className="sidebar-rule" />
+        <nav className="side-nav" aria-label="Dashboard navigation">
+          <a className="active" href="#overview"><span>⌂</span> Overview</a>
+          <a href="#map"><span>⌖</span> Risk map</a>
+          <a href="#trends"><span>◌</span> Trends</a>
+          <a href="#alerts"><span>!</span> Alerts <em>{alerts.length}</em></a>
+        </nav>
+        <div className="sidebar-footer">
+          <span className="status-dot" /> LIVE INGESTION
+          <small>OpenWeather · Open-Meteo<br />GDACS · PostgreSQL</small>
         </div>
-      </div>
-      {error && (
-        <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg mb-4 text-orange-800" role="status">
-          {error}
-        </div>
-      )}
-      
-      {/* City Selector */}
-      <div className="mb-4 text-center">
-        <label className="text-lg font-semibold mr-3">Select City:</label>
-        <select 
-          value={selectedCity} 
-          onChange={(e) => setSelectedCity(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg"
-        >
-          {cities.map(city => (
-            <option key={city} value={city}>{city}</option>
-          ))}
-        </select>
-      </div>
+      </aside>
 
-      {/* Selected City Current Weather - Only show if city has data */}
-      {cityLatestData && (
-        <div className="bg-blue-50 p-4 rounded-lg mb-4">
-          <h2 className="text-lg font-semibold mb-2">🌤️ Current Weather in {selectedCity}</h2>
-          <div className="grid grid-cols-4 gap-4 text-center">
-            <div>
-              <div className="text-2xl font-bold text-blue-600">{cityLatestData.temperature}°C</div>
-              <div className="text-sm text-gray-600">Temperature</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-green-600">{cityLatestData.humidity}%</div>
-              <div className="text-sm text-gray-600">Humidity</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-orange-600">{cityLatestData.wind_speed} m/s</div>
-              <div className="text-sm text-gray-600">Wind Speed</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-purple-600">{cityLatestData.description}</div>
-              <div className="text-sm text-gray-600">Condition</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-cyan-600">{cityLatestData.rainfall_1h_mm ?? 0} mm</div>
-              <div className="text-sm text-gray-600">Rainfall (1h)</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-indigo-600">{cityLatestData.visibility_m ?? "—"} m</div>
-              <div className="text-sm text-gray-600">Visibility</div>
-            </div>
+      <main className="main-content">
+        <header className="topbar">
+          <div><span className="topbar-label">OPERATIONS / COASTAL RISK MONITOR</span><h1>Situation overview</h1></div>
+          <div className="topbar-actions">
+            <span className="sync-status"><i className={refreshing ? "pulse" : ""} /> {refreshing ? "Syncing" : "System nominal"}</span>
+            <span className="updated-time">{lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Awaiting sync"}</span>
           </div>
-          {cityCoastalData && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-center">
-              <div>
-                <div className="text-xl font-bold text-cyan-600">{cityCoastalData.wave_height_m ?? "—"} m</div>
-                <div className="text-sm text-gray-600">Wave Height</div>
-              </div>
-              <div>
-                <div className="text-xl font-bold text-indigo-600">{cityCoastalData.sea_level_height_m ?? "—"} m</div>
-                <div className="text-sm text-gray-600">Sea Level</div>
-              </div>
-              <div>
-                <div className="text-xl font-bold text-teal-600">{cityCoastalData.sea_surface_temperature_c ?? "—"}°C</div>
-                <div className="text-sm text-gray-600">Sea Temperature</div>
-              </div>
-              <div>
-                <div className="text-xl font-bold text-red-600">{cityRiskZone?.properties.risk_level ?? "—"}</div>
-                <div className="text-sm text-gray-600">Risk Level</div>
-              </div>
-              <div>
-                <div className="text-xl font-bold text-amber-600">{cityAnomaly ? (cityAnomaly.is_abnormal ? "ABNORMAL" : "Normal") : "—"}</div>
-                <div className="text-sm text-gray-600">Tide Baseline</div>
-              </div>
-              <div>
-                <div className="text-xl font-bold text-rose-600">{prediction?.alert_level ?? "—"}</div>
-                <div className="text-sm text-gray-600">
-                  ML Alert {prediction?.confidence != null ? `(${Math.round(prediction.confidence * 100)}%)` : ""}
-                </div>
-              </div>
+        </header>
+
+        {error && <div className="notice warning">{error}</div>}
+
+        <section id="overview" className="overview-grid">
+          <div className="hero-panel">
+            <div className="hero-grid-lines" />
+            <span className="eyebrow accent">SELECTED MONITORING ZONE</span>
+            <div className="city-select-wrap">
+              <select value={selectedCity} onChange={(event) => setSelectedCity(event.target.value)} aria-label="Select monitoring city">
+                {cities.map((city) => <option key={city} value={city}>{city}</option>)}
+              </select>
+              <span className="select-chevron">⌄</span>
             </div>
-          )}
-        </div>
-      )}
-      
-      {/* Show message if no data for selected city */}
-      {!cityLatestData && (
-        <div className="bg-yellow-50 p-4 rounded-lg mb-4 text-center">
-          <p className="text-yellow-700">No weather data available for {selectedCity}</p>
-        </div>
-      )}
-      {weatherIsStale && (
-        <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg mb-4 text-orange-800">
-          Latest weather data for {selectedCity} is older than 30 minutes.
-        </div>
-      )}
-      
-      <AlertBanner data={cityData} /> 
-      {cityAlerts.length > 0 && (
-        <div className="bg-red-50 border border-red-200 p-4 rounded-lg mb-4">
-          <h2 className="font-semibold text-red-700">Active Alerts ({cityAlerts.length})</h2>
-          {cityAlerts.slice(0, 5).map(alert => (
-            <div key={alert.id} className="mt-2 text-sm text-red-800">
-              <strong>{alert.city} · {alert.severity}</strong>: {alert.message}
-            </div>
-          ))}
-        </div>
-      )}
-      <WeatherCharts data={cityData} cityName={selectedCity} />
-      <WeatherTable data={cityData} cityName={selectedCity} />
-      
-      {/* Pass city selection handler to MapView */}
-      <MapView
-        data={data}
-        selectedCity={selectedCity}
-        onCitySelect={handleCitySelect}
-        riskZones={riskZones}
-      />
+            <p className="hero-copy">Environmental signals and coastal risk indicators for the selected zone.</p>
+            <div className="hero-meta"><span><i className="status-dot" /> Monitoring active</span><span>7 coastal locations</span></div>
+          </div>
+          <div className={`risk-panel risk-${riskLevel.toLowerCase()}`}>
+            <div className="risk-ring"><strong>{riskScore}</strong><span>RISK<br />SCORE</span></div>
+            <div><span className="eyebrow">COMPOSITE ASSESSMENT</span><h2>{riskLevel} risk</h2><p>Weather, marine and event signals combined</p></div>
+          </div>
+        </section>
+
+        <section className="metric-grid" aria-label="Current measurements">
+          <Metric label="Air temperature" value={cityLatestData ? `${cityLatestData.temperature}°` : "—"} detail="degrees Celsius" tone="blue" />
+          <Metric label="Relative humidity" value={cityLatestData ? `${cityLatestData.humidity}%` : "—"} detail="at observation point" tone="cyan" />
+          <Metric label="Wind velocity" value={cityLatestData ? `${cityLatestData.wind_speed}` : "—"} detail="metres per second" tone="orange" />
+          <Metric label="Wave height" value={cityCoastalData?.wave_height_m != null ? `${cityCoastalData.wave_height_m}m` : "—"} detail="Open-Meteo marine" tone="violet" />
+          <Metric label="Sea level" value={cityCoastalData?.sea_level_height_m != null ? `${cityCoastalData.sea_level_height_m}m` : "—"} detail={cityAnomaly?.is_abnormal ? "anomaly detected" : "within baseline"} tone={cityAnomaly?.is_abnormal ? "red" : "green"} />
+        </section>
+
+        <section id="map" className="content-grid">
+          <div className="card map-card">
+            <SectionHeader eyebrow="01 / GEOSPATIAL SIGNALS" title="Coastal risk map" action={<span className="card-caption">GEOJSON ZONES · LEAFLET</span>} />
+            <MapView data={data} selectedCity={selectedCity} onCitySelect={handleCitySelect} riskZones={riskZones} />
+          </div>
+          <div id="alerts" className="card alerts-card">
+            <SectionHeader eyebrow="02 / RESPONSE QUEUE" title="Active alerts" action={<span className="alert-count">{cityAlerts.length}</span>} />
+            {cityAlerts.length ? cityAlerts.slice(0, 5).map((alert) => (
+              <div className="alert-item" key={alert.id}><span className={`severity severity-${alert.severity?.toLowerCase()}`}>{alert.severity}</span><div><strong>{alert.message}</strong><small>{alert.recommended_action || "Monitor official guidance"} · {alert.status}</small></div></div>
+            )) : <div className="empty-state"><span>✓</span><strong>No active alerts</strong><p>The selected zone is within configured thresholds.</p></div>}
+            <div className="alert-footer">Notification channels · Email / SMS</div>
+          </div>
+        </section>
+
+        <section id="trends" className="card trend-card">
+          <SectionHeader eyebrow="03 / TELEMETRY" title={`${selectedCity} environmental trends`} action={<span className="card-caption">LAST {cityData.length} OBSERVATIONS</span>} />
+          <WeatherCharts data={cityData} cityName={selectedCity} />
+        </section>
+
+        <section className="detail-grid">
+          <div className="card table-card"><SectionHeader eyebrow="04 / OBSERVATIONS" title="Recent weather records" /><WeatherTable data={cityData} cityName={selectedCity} /></div>
+          <div className="card signal-card"><SectionHeader eyebrow="05 / MODEL OUTPUT" title="Alert classifier" /><div className="model-output"><span className={`model-badge model-${predictionLabel.toLowerCase()}`}>{predictionLabel}</span><div><strong>{prediction?.confidence ? `${Math.round(prediction.confidence * 100)}%` : "—"}</strong><small>model confidence</small></div></div><p>Weather-only classifier using temperature, humidity, wind, pressure, hour and month.</p><div className="model-foot"><span>PyTorch / scikit-learn</span><span>{weatherIsStale ? "Stale observation" : "Fresh observation"}</span></div></div>
+        </section>
+
+        <footer className="dashboard-footer"><span>COASTAL INTELLIGENCE SYSTEM</span><span>Prototype monitoring interface · Data is advisory, not an evacuation boundary</span></footer>
+      </main>
     </div>
   );
 }
