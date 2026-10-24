@@ -13,8 +13,15 @@ CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 def _database_config():
     database_url = os.getenv("DATABASE_URL")
     if database_url:
+        database_url = database_url.strip().strip("\"'")
+        if database_url.startswith("DATABASE_URL="):
+            database_url = database_url[len("DATABASE_URL="):].strip().strip("\"'")
         parsed = urlparse(database_url)
-        if parsed.scheme not in {"postgres", "postgresql"} or not parsed.hostname:
+        if (
+            parsed.scheme not in {"postgres", "postgresql"}
+            or not parsed.hostname
+            or not parsed.path.lstrip("/")
+        ):
             raise ValueError("DATABASE_URL must be a valid PostgreSQL connection URL")
 
         query = parse_qs(parsed.query)
