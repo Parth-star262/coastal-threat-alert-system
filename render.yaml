@@ -49,10 +49,7 @@ services:
     staticPublishPath: build
     envVars:
       - key: REACT_APP_API_BASE_URL
-        fromService:
-          type: web
-          name: coastal-threat-api
-          property: host
+        value: https://coastal-threat-alert-system-xkek.onrender.com
 
   - type: cron
     name: coastal-threat-collector
